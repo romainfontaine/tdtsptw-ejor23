@@ -1,0 +1,6 @@
+#+TITLE: An exact and anytime solver for the Time Dependent Traveling Salesman Problem with Time Windows
+
+Source code of the following article will be published here soon :
+
+Romain Fontaine, Jilles Dibangoye, Christine Solnon, Exact and Anytime Approach for Solving the Time Dependent Traveling Salesman Problem with Time Windows, European Journal of Operational Research, 2023, https://doi.org/10.1016/j.ejor.2023.06.001.
+
