@@ -1,6 +1,112 @@
 #+TITLE: An exact and anytime solver for the Time Dependent Traveling Salesman Problem with Time Windows
 
-Source code of the following article will be published here soon :
-
 Romain Fontaine, Jilles Dibangoye, Christine Solnon, Exact and Anytime Approach for Solving the Time Dependent Traveling Salesman Problem with Time Windows, European Journal of Operational Research, 2023, https://doi.org/10.1016/j.ejor.2023.06.001.
+
+#+begin_src bibtex
+@article{FONTAINE2023,
+title = {Exact and anytime approach for solving the time dependent traveling salesman problem with time windows},
+journal = {European Journal of Operational Research},
+year = {2023},
+issn = {0377-2217},
+doi = {https://doi.org/10.1016/j.ejor.2023.06.001},
+url = {https://www.sciencedirect.com/science/article/pii/S0377221723004289},
+author = {Romain Fontaine and Jilles Dibangoye and Christine Solnon},
+keywords = {Travelling salesman, Dynamic programming, Time-dependent cost functions},
+abstract = {The Time Dependent (TD) Traveling Salesman Problem (TSP) is a generalization of the TSP which allows one to take traffic conditions into account when planning tours in an urban context, by making the travel time between locations dependent on the departure time instead of being constant. The TD-TSPTW further generalizes this problem by adding Time Window constraints. Existing exact approaches such as Integer Linear Programming and Dynamic Programming usually do not scale well. We therefore introduce a new exact approach based on an anytime extension of A*. We combine this approach with local search, to converge faster towards better solutions, and bounding and time window constraint propagation, to prune parts of the state space. We experimentally compare our approach with state-of-the-art approaches on both TD-TSPTW and TSPTW benchmarks.}
+}
+#+end_src
+
+This project is a proof of concept for solving the TD-TSPTW under the /makespan/ objective (/i.e./, it does not follow the best practices of software engineering, but instead focuses on performance and simplicity).
+Its main purpose is to allow reproducing results presented in the above article, which thoroughly describes the approarch.
+
+*** Acknowledgments
+This project relies on [[https://github.com/martinus][@martinus]]'s excellent [[https://github.com/martinus/unordered_dense][unordered_dense]] hashmap implementation.
+** Compiling the solver
+Run ~make~ at the root of the repository to build a binary named ~tdtsptw~ (requires a C++17 compatible compiler and uses ~g++-10~ by default). 
+
+This binary can handle instances containing up to 64 nodes. For solving instances containing up to ~n~ nodes, use the target ~tdtsptw<n>~, where $n \in \{128, 192, 256, 320, 384, 448, 512\}$ (/e.g./ ~make tdtsptw256~).
+
+~make all~ will build the binaries for all sizes, whereas ~make small~ and ~make large~ will build only the binaries for the smallest and largest instance sizes, respecively.
+
+Several options can be provided to ~make~:
+- ~MARCH=<arch>~: builds binaries optimized for architecture ~<arch>~, under subdirectory ~bin-<arch>/~ (/e.g./ ~make small MARCH=native~),
+- ~COMPILER=<compiler>~: self explanatory (/e.g./ ~make small COMPILER=g++-11~).
+
+** Extracting the benchmarks
+Benchmarks are included is this repository as ~.tar.gz~ archives. To extract them, run ~make -C benchmarks~ (use ~make -C benchmarks/ clean~ to remove the extracted instances). 
+** Solving instances
+To solve instances, use ~./tdtsptw solve ACS <INSTANCE>~, where ~<INSTANCE>~ is defined as:
+#+begin_src 
+<INSTANCE> := <TD-IGP>
+            | <TD-PIECEWISE-CONSTANT>
+            | <CONSTANT>
+#+end_src
+*** TD benchmarks using the IGP model (i.e. Ari18 and Vu20)
+#+begin_src 
+<TD-IGP> := IGP <n> <delta> <pattern> <beta> <id> [ <benchmark-dir> ]
+          | IGP <path/to/inst-file> [ <path/to/jam-file> ]
+#+end_src
+
+More specifically, run ~./tdtsptw solve ACS IGP 31 70 A 50 3~ to solve the third instance of class $n=31$, $\delta=.70$, $pattern=A$, $\beta=.50$ from Ari18's benchmark (assuming instances are located in ~benchmarks/Ari18Vu20/~, otherwise use ~-benchmark-dir=path/to/dir/~).
+
+*** TD benchmarks using piecewise constant cost functions (i.e. Rif20)
+#+begin_src 
+<TD-PIECEWISE-CONSTANT> := pw_constant <n> <cost-file> <tw-file> <service-file> [ -timestep-duration=360 ] [ -timestep-number=120 ]
+#+end_src
+
+To solve fourth TW layout of the first instance with $\sigma=100$, $n=21$, and $\beta=0.50$, use :   
+
+#+begin_src 
+./tdtsptw solve ACS pw_constant 21 ./benchmarks/Rif20/sigma=100/n=21/cost_100_6_21_1.txt benchmarks/Rif20/TW_Ari18/n21_l6_sigma100/beta_50/tt01_tw04.tw benchmarks/Rif20/s/21_0
+#+end_src
+
+Notes:
+- Files located in ~Rif20/s/~ include either a) no service times (filename ~<n>_0~) or b) service times of 180s, except at the depot (~<n>_180~). 
+- In benchmark ~Rif20~ with TWs /a la/ ~Ari18~, we considered 5 random TW layouts for each of the 30 instances (/i.e./ for the first instance, ~tt01_tw01.tw~ through ~tt01_tw05.tw~ included). 
+
+*** Constant benchmarks 
+#+begin_src
+<CONSTANT> := constant <path-to-instance-file>
+#+end_src
+
+To solve instance ~n100w160.002.txt~ of benchmark ~gen98~, use:
+#+begin_src 
+./tdtsptw128 solve ACS constant benchmarks/gen98/n100w160.002.txt
+#+end_src
+
+Variants of the benchmarks where triangle inequality is enforced are located under ~TI/~ subdirectories (in that case, the argument ~-triangle-inequality=true~ can be used to make constraint propagation quicker). 
+
+*** Solving parameters
+Several parameters can be passed to the solver :
+- ~-tl=<tl>~, where ~<tl>~ denotes the time limit in seconds (defaults to 60s),
+- ~-mem-limit-gb=<ml>~, where ~<ml>~ denotes the memory limit in GB (defaults to 64 GB),
+- ~-h=<h>~ where ~<h>~ denotes the lower bound to use (from set ~{fea, oia, msa}~, defaults to ~oia~),
+- ~-w=<w>~ determine's ACS /column width/ ~<w>~ (defaults to 1).
+
+Local search can be disabled using parameter ~-ls=false~. Similarly, initial TW constraint propagation is disabled through ~-preprocess-tws=false~ and TW constraint propagation during search (on each upper bound improvement) using ~-process-tws=false~.
+
+*** Solver's output
+ACS outputs a sequence of solutions (which may be empty), and ends with a "conclusion", which is either a) an optimality proof, b) a time limit, or c) a memory limit:
+
+#+begin_src
+<OUTPUT>     := <SOLUTION>* <CONCLUSION>
+
+<CONCLUSION> := <OPTIMALITY-PROOF>
+              | <TIME-LIMIT>
+              | <MEMORY-LIMIT>
+#+end_src
+
+Each ~<SOLUTION>~ is displayed as a tuple, /e.g./ ~(6245, 0, 0, (0.0345107, 0.039041, 0))~. The first item of this tuple is the best known objective value, and the fourth item - another tuple - denotes the elapsed time. This time tuple contains ~(<wallclock-time>, <cpu-usr-time>, <cpu-sys-time>)~, in seconds.
+The associated path is displayed below (/e.g./ ~# Path : [0,12,...,19,21,]~), for each solution found (or group of solutions, when they are found through local search).
+
+~<OPTIMALITY-PROOF>~ and ~<TIME-LIMIT>~ display a similar tuple prefixed by "Complete" and "tl", respectively. When the solver reaches the ~<MEMORY-LIMIT>~, it is terminated through ~std::bad_alloc~.
+
+** Notes on reproducibility
+In the results reported in the above article, the target architecture was ~x86-64~ and the following measures were taken to increase reproducibility:
+- Each machine solved at most one instance at any given time,
+- /Intel Turbo Boost/ was disabled (using ~echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo~) in order to prevent dynamic overclocking of the CPU.
+
+Note: in ACS, different ~std::priority_queue~ implementations may lead to different explorations orders, as open states are only partially ordered (/e.g./ the GNU C++ library ~libstdc++~ vs. Clang's ~libc++~). 
+
+
 
